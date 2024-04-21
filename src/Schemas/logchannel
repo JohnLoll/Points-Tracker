@@ -1,0 +1,17 @@
+const { log } = require('mathjs');
+const { Schema, model } = require('mongoose');
+
+// Define the schema
+const logchannelSchema = new Schema({
+    Guild: String,
+    Channel: String,
+});
+
+// Create the model
+const logchannelModel = model('logchannel', logchannelSchema);
+
+// Extract individual properties from the schema
+const {Guild, Channel} = logchannelSchema.obj;
+
+// Export the model and individual properties
+module.exports = { logchannelModel, Guild, Channel };
