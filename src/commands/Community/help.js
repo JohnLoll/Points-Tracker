@@ -1,6 +1,12 @@
 const { EmbedBuilder } = require('@discordjs/builders');
 
+
 const { REST, Routes } = require('discord.js');
+
+
+const { REST, Routes } = require('discord.js');
+
+
 const { SlashCommandBuilder } = require('discord.js');
 module.exports = {
   data: new SlashCommandBuilder()
@@ -40,4 +46,8 @@ module.exports = {
       return;
     }
   
+
 }; 
+
+}; 
+
