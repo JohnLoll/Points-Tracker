@@ -42,12 +42,9 @@ module.exports = {
   async execute(client, interaction) {
     const officerCommandTimestamps = {};
 
-
-
     if (interaction.commandName === 'ep') {
       amountToAddep = 0;
       amountToRemoveep = 0;
-
 
       const action = interaction.options.getString('action');
       if (action === 'Add') {
@@ -177,10 +174,7 @@ module.exports = {
         }
       }
 
-
-
       if (interaction.customId === "cancel_add_ep") {
-
         lookingForReply = false;
         await interaction.message.edit({
           components: [
@@ -205,7 +199,6 @@ module.exports = {
       }
 
       if (interaction.customId === "cancel_remove_ep") {
-
         lookingForReply = false;
         await interaction.message.edit({
           components: [
@@ -231,9 +224,7 @@ module.exports = {
     }
   },
   handleResponse: async (client, msg) => {
-
     const { google } = require('googleapis');
-
     // Set up your authentication and the Google Sheets client
     const auth = new google.auth.GoogleAuth({
       keyFile: 'credentials.json', // Use your credentials file
@@ -242,13 +233,12 @@ module.exports = {
     sheets = google.sheets({ version: 'v4', auth });
     function getColumnLetter(columnIndex) {
       let letter = '';
-
+      
       while (columnIndex >= 0) {
         const remainder = columnIndex % 26;
         letter = String.fromCharCode(65 + remainder) + letter;
         columnIndex = Math.floor(columnIndex / 26) - 1;
       }
-
       return letter;
     }
 
