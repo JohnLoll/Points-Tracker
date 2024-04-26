@@ -233,7 +233,7 @@ module.exports = {
     sheets = google.sheets({ version: 'v4', auth });
     function getColumnLetter(columnIndex) {
       let letter = '';
-      
+
       while (columnIndex >= 0) {
         const remainder = columnIndex % 26;
         letter = String.fromCharCode(65 + remainder) + letter;
@@ -339,10 +339,7 @@ module.exports = {
       console.log(`Added **${amountToAddep}** event points to ${officerNickname}`);
       msg.channel.send(`Added **${amountToAddep}** event points to ${officerNickname}`);
     }
-
-
-
-
+    
     async function removePointsToUserByNickname(spreadsheetId, epmember, amountToRemoveep, officerNickname) {
       try {
         const guild = client.guilds.cache.get('877869164344262746');
