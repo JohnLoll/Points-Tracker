@@ -2,10 +2,11 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Discord = require('discord.js');
 const { google } = require('googleapis');
-
+const dotenv = require("dotenv");
+dotenv.config();
 
 let officerReplying = null;
-let lookingForReply = false;
+//let lookingForReply = false;
 let msgToReplyep = null;
 let reason = '';
 let mentionedUser = null;
@@ -38,7 +39,6 @@ module.exports = {
           { name: 'Add', value: 'Add' },
           { name: 'Remove', value: 'Remove' },
         )),
-
   async execute(client, interaction) {
     const officerCommandTimestamps = {};
 
@@ -48,7 +48,7 @@ module.exports = {
 
       const action = interaction.options.getString('action');
       if (action === 'Add') {
-        if (!lookingForReply) {
+        if (process.env.LOOKING_FOR_REPLY == false) {
           await interaction.deferReply();
           var msg = await interaction.editReply({
             components: [
@@ -66,7 +66,7 @@ module.exports = {
             ],
             content: `Who would you like to add **${interaction.options.getInteger('amount')}** event points to? Reply to this with a message with all users pings.`
           });
-          lookingForReply = true;
+          process.env['LOOKING_FOR_REPLY'] = false
           officerReplying = interaction.user.id;
           msgToReplyep = msg;
           amountToAddep = interaction.options.getInteger('amount');
@@ -79,8 +79,8 @@ module.exports = {
           officerCommandTimestamps.set(interaction.user.id, Date.now());
 
           const timeoutId = setTimeout(() => {
-            if (lookingForReply) {
-              lookingForReply = false;
+            if (process.env.LOOKING_FOR_REPLY == true) {
+              process.env['LOOKING_FOR_REPLY'] = false
               msgToReplyep.edit({
                 components: [
                   {
@@ -112,7 +112,7 @@ module.exports = {
           return;
         }
       } else if (action === 'Remove') {
-        if (!lookingForReply) {
+        if (process.env.LOOKING_FOR_REPLY == false) {
           await interaction.deferReply();
           var msg = await interaction.editReply({
             components: [
@@ -130,7 +130,7 @@ module.exports = {
             ],
             content: `Who would you like to remove **${interaction.options.getInteger('amount')}** event points from? Reply to this with a message with all users pings.`
           });
-          lookingForReply = true;
+          process.env['LOOKING_FOR_REPLY'] = true;
           officerReplying = interaction.user.id;
           msgToReplyep = msg;
           amountToRemoveep = interaction.options.getInteger('amount');
@@ -145,7 +145,7 @@ module.exports = {
 
           // Set a timeout to reset officerReplying after 5 minutes
           setTimeout(() => {
-            lookingForReply = false;
+            process.env['LOOKING_FOR_REPLY'] == false
             msgToReplyep.edit({
               components: [
                 {
@@ -175,7 +175,7 @@ module.exports = {
       }
 
       if (interaction.customId === "cancel_add_ep") {
-        lookingForReply = false;
+        process.env['LOOKING_FOR_REPLY'] = false;
         await interaction.message.edit({
           components: [
             {
@@ -199,7 +199,7 @@ module.exports = {
       }
 
       if (interaction.customId === "cancel_remove_ep") {
-        lookingForReply = false;
+        process.env['LOOKING_FOR_REPLY'] = false;
         await interaction.message.edit({
           components: [
             {
@@ -339,7 +339,7 @@ module.exports = {
       console.log(`Added **${amountToAddep}** event points to ${officerNickname}`);
       msg.channel.send(`Added **${amountToAddep}** event points to ${officerNickname}`);
     }
-    
+
     async function removePointsToUserByNickname(spreadsheetId, epmember, amountToRemoveep, officerNickname) {
       try {
         const guild = client.guilds.cache.get('877869164344262746');
@@ -439,7 +439,7 @@ module.exports = {
       msg.channel.send(`Removed event points from ${officerNickname}`);
     }
 
-    if (lookingForReply) {
+    if (process.env.LOOKING_FOR_REPLY == true) {
       const mentionedUserIDs = new Set();
       if (msg.author.id === officerReplying && msg.reference != null && msg.reference.messageId === msgToReplyep.id) {
 
@@ -526,7 +526,7 @@ module.exports = {
 
 
           }
-          lookingForReply = false;
+          process.env['LOOKING_FOR_REPLY'] = false;
         }
 
         processMembers();
