@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { logchannelModel } = require('../../Schemas/logchannel');
-
+const ownerid = '721500712973893654'
 module.exports = {
     data: new SlashCommandBuilder()
     .setName('logchannel')
@@ -36,9 +36,9 @@ module.exports = {
 
             return check;
         }
-
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) return await sendMessage(`⚠️ You dont have perms to use this!`);
-
+        if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) && interaction.member.id !== ownerid) {
+            return await interaction.reply({ content: `⚠️ You don't have perms to use this!`, ephemeral: true });
+        }
         switch (sub) {
             case 'add':
                 var check = await checkData(true);

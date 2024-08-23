@@ -2,7 +2,6 @@ const { Schema, model } = require('mongoose');
 
 let companyhicom = new Schema({
     Guild: String,
-    Name: String,
     Role: Array,
 });
 

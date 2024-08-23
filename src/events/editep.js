@@ -1,7 +1,8 @@
-const { EmbedBuilder, Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, Events, ActionRowBuilder, ButtonBuilder, ButtonStyle,  PermissionsBitField } = require('discord.js');
 const Discord = require('discord.js');
 const {epModel} = require('../Schemas/ep');
 let {logchannelModel, Channel} = require('../Schemas/logchannel');
+const ownerid = '721500712973893654'
 module.exports = {
     name: Events.InteractionCreate,
     async execute (interaction, client) {
@@ -11,6 +12,7 @@ module.exports = {
     Range: String,
     Weeklyoffset: Number,
     Totaloffset: Number,*/
+    
         if (!interaction.guild) return;
         if (!interaction.isModalSubmit()) return;
 
@@ -30,6 +32,7 @@ module.exports = {
                 existingConfig.Range = range;
                 existingConfig.Weeklyoffset = weeklyoffset;
                 existingConfig.Totaloffset = totaloffset;
+                await existingConfig.save();
             }
 
             var logdata = await logchannelModel.find({ Guild: interaction.guild.id });

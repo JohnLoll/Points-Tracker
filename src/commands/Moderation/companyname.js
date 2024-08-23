@@ -2,20 +2,34 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('disc
 
 const {cepModel} = require('../../Schemas/company');
 module.exports = {
+    companyhicom: true,
     data: new SlashCommandBuilder()
     .setName('companyname')
-    .setDescription('Differnt Companys name in the server')
-    .addSubcommand(command => command.setName('add').setDescription('Add a company to the database.').addStringOption(option => option.setName('name').setDescription('The name of the company to add.').setRequired(true))
+    .setDescription('Different Companys name in the server')
+    .addSubcommand(command => command.setName('add').setDescription('Add a company to the database.').addStringOption(option => option.setName('name').setDescription('The name of the company to add.').setRequired(true).addChoices({ name: 'Speed Demon', value: '"Speed Demon" Company' },
+    { name: 'Dusk Company', value: 'Dusk Company' },
+    { name: 'Trooper', value: 'Trooper' },
+    { name: 'Storm Company', value: 'Storm Company' },
+    { name: 'Initiate', value: 'Initiate'},))
     .addStringOption(option => option.setName('sheetid').setDescription('The companys spreedsheet id.').setRequired(true))
     .addStringOption(option => option.setName('ceprange').setDescription('The range for the cep spreedsheet.').setRequired(true))
     .addStringOption(option => option.setName('eprange').setDescription('The range for the ep spreedsheet.').setRequired(true))
+    .addStringOption(option => option.setName('trooperrange').setDescription('The companys range for normal members.').setRequired(true))
+    .addStringOption(option => option.setName('trooperstart').setDescription('The start value for normal members.').setRequired(true))
+    .addStringOption(option => option.setName('officerstart').setDescription('The start value for staff members.').setRequired(true))
+    .addStringOption(option => option.setName('weeklycolumoffset').setDescription('The Colum offset for weekly.').setRequired(true))
+    .addStringOption(option => option.setName('totalcolumoffset').setDescription('The Colum offset for total.').setRequired(true))
     .addIntegerOption(option => option.setName('cepquota').setDescription('The companys cep quota.').setRequired(true))
     .addIntegerOption(option => option.setName('epquota').setDescription('The companys ep quota.').setRequired(true))
     .addIntegerOption(option => option.setName('weeklyoffset').setDescription('The offset for the weekly cep.').setRequired(true))
     .addIntegerOption(option => option.setName('totaloffset').setDescription('The offset for the total cep.').setRequired(true)))
-    .addSubcommand(command => command.setName('remove').setDescription('Remove a company from the database').addStringOption(option => option.setName('name').setDescription('The company to remove').setRequired(true)))
+    .addSubcommand(command => command.setName('remove').setDescription('Remove a company from the database').addStringOption(option => option.setName('name').setDescription('The company to remove').setRequired(true).addChoices({ name: 'Speed Demon', value: '"Speed Demon" Company' },
+        { name: 'Dusk Company', value: 'Dusk Company' },
+        { name: 'Trooper', value: 'Trooper' },
+        { name: 'Storm Company', value: 'Storm Company' },
+        { name: 'Initiate', value: 'Initiate'},)))
     .addSubcommand(command => command.setName('check').setDescription('Check the company name(s)')),
-    
+   
     async execute (interaction) {
 
         const { options } = interaction;
@@ -36,6 +50,11 @@ module.exports = {
             var sheetid = options.getString('sheetid');
             var ceprange = options.getString('ceprange');
             var eprange = options.getString('eprange');
+            var Trooperrange = options.getString('trooperrange');
+            var Trooperstart = options.getString('trooperstart');
+            var officerstart = options.getString('officerstart');
+            var weeklycolumoffset = options.getString('weeklycolumoffset');
+            var totalcolumoffset = options.getString('totalcolumoffset');
             var cepquota = options.getInteger('cepquota');
             var epquota = options.getInteger('epquota');
             var weeklyoffset = options.getInteger('weeklyoffset');
@@ -49,8 +68,8 @@ module.exports = {
 
             return check;
         }
-      
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) return await sendMessage(`⚠️ You dont have perms to use this!`);
+     
+        
 
         switch (sub) {
             case 'add':
@@ -59,6 +78,11 @@ module.exports = {
                 var sheetid = options.getString('sheetid');
                 var ceprange = options.getString('ceprange');
                 var eprange = options.getString('eprange');
+                var trooperrange = options.getString('trooperrange');
+                var trooperstart = options.getString('trooperstart');
+                var officerstart = options.getString('officerstart');
+                var weeklycolumoffset = options.getString('weeklycolumoffset');
+                var totalcolumoffset = options.getString('totalcolumoffset');
                 var cepquota = options.getInteger('cepquota');
                 var epquota = options.getInteger('epquota');
                 var weeklyoffset = options.getInteger('weeklyoffset');
@@ -72,6 +96,11 @@ module.exports = {
                         Sheetid: sheetid,
                         Ceprange: ceprange,
                         Eprange: eprange,
+                        Trooperrange: trooperrange,
+                        Trooperstart: trooperstart,
+                        Officerstart: officerstart,
+                        Weeklycolumoffset: weeklycolumoffset,
+                        Totalcolumoffset: totalcolumoffset,
                         Cepquota: cepquota,
                         Epquota: epquota,
                         Weeklyoffset: weeklyoffset,
@@ -102,7 +131,7 @@ module.exports = {
                     if (!value.Name) return;
                     else {
                        
-                        values.push(`**Company:** ${value.Name}\n**Sheetid:** ${value.Sheetid}\n**Ep Range:** ${value.Eprange}\n**Cep Range:** ${value.Ceprange}\n**Cep Quota:** ${value.Cepquota}\n**Ep Quota:** ${value.Epquota}\n**Weekly Offset:** ${value.Weeklyoffset}\n**Total Offset:** ${value.Totaloffset}`);
+                        values.push(`${value.Name}\n**Sheetid:** ${value.Sheetid}\n**Ep Range:** ${value.Eprange}\n**Trooper Start:** ${value.Trooperstart}\n **Officer Start:** ${value.Officerstart}\n**Weekly Colum Offset:** ${value.Weeklycolumoffset} \n**Total Colum Offset:** ${value.Totalcolumoffset}\n **Trooper Range:** ${value.Trooperrange}\n**Cep Range:** ${value.Ceprange}\n**Cep Quota:** ${value.Cepquota}\n**Ep Quota:** ${value.Epquota}\n**Weekly Offset:** ${value.Weeklyoffset}\n**Total Offset:** ${value.Totaloffset}\n`);
                     }
                 });
 

@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, Embed } = require('discord.js');
 const block = require('../../Schemas/blockcmd');
-
+const ownerid = '721500712973893654'
 module.exports = {
     data: new SlashCommandBuilder()
     .setName('block-command')
@@ -39,8 +39,10 @@ module.exports = {
             else return { cmd: match, query: command };
         }
 
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) return await sendMessage(`⚠️ You dont have perms to use this!`);
-
+     
+        if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) && interaction.member.id !== ownerid) {
+            return await interaction.reply({ content: `⚠️ You don't have perms to use this!`, ephemeral: true });
+        }
         switch (sub) {
             case 'set':
                 var command = await compareCommand();

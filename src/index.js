@@ -1,24 +1,15 @@
 const { Channel } = require('diagnostics_channel');
 const { Client, GatewayIntentBits, ActivityType, EmbedBuilder, Events, Partials, PermissionsBitField, Permissions, MessageManager, Embed, Collection, ButtonBuilder, ActionRowBuilder, ButtonStyle, DefaultDeviceProperty, ChannelType, AttachmentBuilder } = require(`discord.js`);
 const fs = require('fs');
-const Discord = require('discord.js');
 const internal = require('stream');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessageTyping, GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessageReactions, GatewayIntentBits.GuildVoiceStates], partials: [Partials.Message, Partials.Channel, Partials.Reaction] }); 
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.DirectMessageTyping, GatewayIntentBits.DirectMessages], partials: [Partials.Message, Partials.Channel, Partials.Reaction] }); 
+const axios = require('axios');
+let { cepModel, Eprange, Officerstart} = require('./Schemas/company');
 let { epModel, Name, Guild, Sheetid, Range, Weeklyoffset, Totaloffset } = require('./Schemas/ep');
 client.commands = new Collection();
-
+let botDisabled = false;
 require('dotenv').config();
-/*
-let officerReplying = null;
-let lookingForReply = false;
-let msgToReplyep = null;
-let reason = '';
-let mentionedUser = null;
-let amountToRemoveep = null;
-let amountToAddep = null;
-let avatar = '';
-let guild = null;
-let Guilds = null*/
+
 const functions = fs.readdirSync("./src/functions").filter(file => file.endsWith(".js"));
 const eventFiles = fs.readdirSync("./src/events").filter(file => file.endsWith(".js"));
 const commandFolders = fs.readdirSync("./src/commands");
@@ -31,110 +22,377 @@ const commandFolders = fs.readdirSync("./src/commands");
     client.handleCommands(commandFolders, "./src/commands");
     client.login(process.env.token)
 })();
-// Import necessary modules and classes
 
 
-const path = require('path');
-let botDisabled = false;
-// Create a new Discord client
+client.on(Events.MessageCreate, async message => {
+    if (!message.guild) return;
+    if (message.author.bot) return;
+
+    
+    
+
+});
+
+const Cooldown = require('./Schemas/cooldownSchema'); // Path to your schema
 
 
-// Create a collection to store commands
-client.commands = new Collection();
+// Role IDs
+const cooldownRoleId = '896777084721041419'; // Replace with your actual cooldown role ID
+const inactivityRoleId = '1027684343495262208'; // Replace with your actual inactivity role ID
 
-// Create a Map to store guild states
-const guildStates = new Map();
+client.on('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}!`);
 
-// Create a Map to store button custom IDs and their associated commands
-const buttonCommands = new Map();
+  const currentDateTime = new Date();
+  const activeCooldowns = await Cooldown.find({ EndTime: { $gt: currentDateTime } });
 
-// Read command files
+  activeCooldowns.forEach(async (cooldown) => {
+    const guild = client.guilds.cache.get(cooldown.Guild);
+    if (!guild) return;
 
+    const member = guild.members.cache.get(cooldown.User);
+    if (!member) return;
 
-for (const folder of commandFolders) {
-  const commandFiles = fs.readdirSync(path.join('./src/commands', folder)).filter(file => file.endsWith('.js'));
+    const remainingCooldownTime = cooldown.EndTime - currentDateTime;
+    const remainingInactivityTime = cooldown.InactivityEndTime - cooldown.EndTime;
 
-  for (const file of commandFiles) {
-    const command = require(path.join(__dirname, 'commands', folder, file));
+    // Re-schedule role removals and additions
+    setTimeout(async () => {
+      await member.roles.remove(cooldownRoleId);
+      await member.roles.add(inactivityRoleId);
 
-    if (command.data) {
-      client.commands.set(command.data.name, command);
+      setTimeout(async () => {
+        await member.roles.remove(inactivityRoleId);
+        await Cooldown.findOneAndDelete({ User: cooldown.User, Guild: cooldown.Guild });
+      }, remainingInactivityTime);
+    }, remainingCooldownTime);
+  });
+});
 
-      // Check if the command has a buttonCustomId and associate it with the command instance
-      if (command.buttonCustomId) {
-        buttonCommands.set(command.buttonCustomId, command);
+// Function to get the nickname without timezone
+function getNicknameWithoutTimezone(user) {
+    const nickname = user.nickname || user.user.username;
+    return nickname.replace(/\s*\[.*\]\s*$/, ''); // Remove the timezone information from the nickname
+}
+async function UpdateUserNickname( oldNickname, newNickname) {
+  let { epModel, Name, Guild, Sheetid, Range } = require('./Schemas/ep');
+  var data = await epModel.find({ Guild: '877869164344262746', Name: 'EP' });
+  var values = [];
+  await data.forEach(async value => {
+      if (!value.Name) return;
+      else {
+          values.push(Sheetid = value.Sheetid, Range = value.Range);
       }
-    } else {
-      console.error(`[WARNING] Invalid command file: ${file}`);
-    }
+  });
+
+  function getColumnLetter(columnIndex) {
+      let letter = '';
+
+      while (columnIndex >= 0) {
+          const remainder = columnIndex % 26;
+          letter = String.fromCharCode(65 + remainder) + letter;
+          columnIndex = Math.floor(columnIndex / 26) - 1;
+      }
+
+      return letter;
+  }
+
+  try {
+      const range = Range;
+      const { google } = require('googleapis');
+      const auth = new google.auth.GoogleAuth({
+          keyFile: 'credentials.json', // Use your credentials file
+          scopes: 'https://www.googleapis.com/auth/spreadsheets',
+      });
+      const sheets = google.sheets({ version: 'v4', auth });
+      const res = await sheets.spreadsheets.values.get({
+          spreadsheetId: Sheetid,
+          range,
+      });
+
+      const values = res.data.values;
+
+      if (values) {
+          let rowIndex;
+          let found = false;
+          let modifiedCells = [];
+
+          for (let rIndex = 0; rIndex < values.length; rIndex++) {
+              rowIndex = rIndex;
+
+              const row = values[rIndex];
+
+              for (let columnIndex = 0; columnIndex < row.length; columnIndex++) {
+                  const currentNickname = row[columnIndex];
+
+                  if (currentNickname) {
+                      const cleanedCurrentNickname = currentNickname.trim().replace(/[^\w\s]/gi, '');
+                      const oldNicknameLower = oldNickname.trim().replace(/[^\w\s]/gi, '').toLowerCase();
+
+                      if (cleanedCurrentNickname.toLowerCase() === oldNicknameLower) {
+                          // Update the nickname to the new nickname
+                          values[rowIndex][columnIndex] = newNickname;
+
+                          const usernameColumnLetter = getColumnLetter(columnIndex + 3);
+
+                          console.log('Update Range:', {
+                              usernameColumnLetter,
+                              rowIndex,
+                          });
+
+                          modifiedCells.push({
+                              range: `${usernameColumnLetter}${rowIndex + 62}:${usernameColumnLetter}${rowIndex + 62}`,
+                              values: [[newNickname]], // Set the new nickname
+                          });
+
+                          found = true;
+                          break;
+                      }
+                  }
+              }
+
+              if (found) {
+                  break;
+              }
+          }
+
+          if (found) {
+              // Update only the modified cells with the new nickname
+              await sheets.spreadsheets.values.batchUpdate({
+                  spreadsheetId: Sheetid,
+                  resource: {
+                      data: modifiedCells,
+                      valueInputOption: 'USER_ENTERED',
+                  },
+              });
+
+              console.log(`Updated nickname from ${oldNickname} to ${newNickname} in the EP spreadsheet.`);
+              //interaction.channel.send(`Updated ${oldNickname} to ${newNickname} in the EP spreadsheet.`);
+
+              return { oldNickname, newNickname };
+          } else {
+              console.log(`User with Discord nickname "${oldNickname}" not found in the spreadsheet.`);
+              //interaction.channel.send(`User with Discord nickname "${oldNickname}" not found in the EP sheet.`);
+              return null;
+          }
+      } else {
+          console.log('Spreadsheet data not found.');
+          //interaction.channel.send('Spreadsheet data not found.');
+          return null;
+      }
+
+  } catch (error) {
+      console.error('Error getting and updating user data:', error);
+      //interaction.channel.send('Error getting and updating user data:', error);
+      return null;
   }
 }
-const commandContexts = new Map();
-// Event handler for when the bot is ready
-client.once(Events.ClientReady, () => {
-  console.log('Ready!');
-});
-/*
-// Event handler for when an interaction occurs
-client.on(Events.InteractionCreate, async interaction => {
-  if (botDisabled && interaction.user.id !== '721500712973893654') {
-    await interaction.reply({ ephemeral: true, content: 'The BARC points bot is currently disabled. Please contact <@721500712973893654> with any concerns.' });
-    return;
-  }
-  try {
-    if (interaction.isCommand()) {
-      const command = client.commands.get(interaction.commandName);
-  if (command) {
-    // Retrieve or create the guild state
-    let guildState = guildStates.get(interaction.guild.id);
-    if (!guildState) {
-      guildState = {
-        // initialize your state variables here
-      };
-      guildStates.set(interaction.guild.id, guildState);
+
+// Function to check for nickname changes
+const nicknameCache = {}; // Initialize at the top level
+
+function checkNicknameChanges(guild) {
+    guild.members.fetch().then(members => {
+        members.forEach(member => {
+            const oldNickname = nicknameCache[member.id];
+            const newNickname = member.nickname || member.user.username;
+
+            // Only consider a nickname change if there's a previously cached nickname
+            if (oldNickname && oldNickname !== newNickname) {
+                // Log the old and new nicknames without timezone info
+                const oldNicknameCleaned = getNicknameWithoutTimezone({ nickname: oldNickname });
+                const newNicknameCleaned = getNicknameWithoutTimezone({ nickname: newNickname });
+
+                console.log(`Nickname change detected for ${member.user.tag}`);
+                console.log(`Old: ${oldNicknameCleaned}`);
+                console.log(`New: ${newNicknameCleaned}`);
+
+                // Update the user nickname
+                UpdateUserNickname(oldNicknameCleaned, newNicknameCleaned);
+
+                // Update the cache with the new nickname
+                nicknameCache[member.id] = newNickname;
+            } else if (!oldNickname) {
+                // Initialize the cache with the current nickname if not previously cached
+                nicknameCache[member.id] = newNickname;
+            }
+        });
+    }).catch(error => {
+        console.error('Error fetching members:', error);
+    });
+}
+
+
+// Set the interval to check every 5 minutes
+client.once('ready', () => {
+  
+    const guild = client.guilds.cache.get('877869164344262746'); // Replace with your guild ID
+    if (guild) {
+        console.log(`Bot is ready and checking for nickname changes every 5 minutes.`);
+        checkNicknameChanges(guild)
+        setInterval(() => checkNicknameChanges(guild), 60 * 1000); // 5 minutes in milliseconds
     }
+});
+const Audit_Log = require('./Schemas/auditlog');
+let cepStatus = '✅';
+    let epStatus = '✅';
+    let cepStatusnew = '✅';
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
 
-    // Store the command context
-    commandContexts.set(interaction.user.id, { command: command.data.name, guildState });
+  if (interaction.customId === 'selectLoggingLevel') {
+    const selectedLevels = interaction.values;
+    const guildId = interaction.guildId;
 
-    await command.execute(client, interaction, guildState);
-  } else {
-    console.error(`No command matching ${interaction.commandName} was found.`);
+    await Audit_Log.findOneAndUpdate(
+      { Guild: guildId },
+      { LogLevel: selectedLevels },
+      { new: true, upsert: true }
+    );
+
+    const updatedSettings = await Audit_Log.findOne({ Guild: guildId });
+    const updatedSettingsList = updatedSettings.LogLevel.length > 0
+      ? updatedSettings.LogLevel.map(level => `â€¢ ${level}`).join('\n')
+      : 'None selected.';
+
+    const updatedEmbed = new EmbedBuilder()
+      .setColor("Blue")
+      .setTitle("🔧 Audit Log Settings Updated")
+      .setDescription(`Your audit log settings have been updated.\n\n**Current Logging Levels:**\n${updatedSettingsList}`)
+      .setThumbnail("https://i.imgur.com/PcMoVgq.png")
+      .setFooter({ text: "Audit log configuration." })
+      .setTimestamp();
+
+      await interaction.update({ embeds: [updatedEmbed] });
   }
-    } else if (interaction.isButton()) {
-      // Handle button interactions
-      const buttonCustomId = interaction.customId;
+});
+const GUILD_ID = '877869164344262746';
+const ROLE_ID = '1257810777679593502';
 
-      // Check if the customId corresponds to a command
-      const command = buttonCommands.get(buttonCustomId);
+client.once('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+  //sendRepeatedMessage();
 
-      if (command) {
-        // Retrieve or create the guild state
-        let guildState = guildStates.get(interaction.guild.id);
-        if (!guildState) {
-          guildState = {
-            // initialize your state variables here
-          };
-          guildStates.set(interaction.guild.id, guildState);
+  const guild = await client.guilds.fetch(GUILD_ID);
+  if (!guild) {
+      console.error(`Guild with ID ${GUILD_ID} not found.`);
+      return;
+  }
+
+  // Store members who have the role initially
+  let membersWithRole = new Set();
+
+  const updateMembersWithRole = async () => {
+    console.log(`Checking for role changes at ${new Date().toLocaleString()}`);
+    
+    const members = await guild.members.fetch();
+    const newMembersWithRole = new Set();
+
+    members.forEach(member => {
+        if (member.roles.cache.has(ROLE_ID)) {
+            newMembersWithRole.add(member.id);
         }
+    });
 
-        await command.execute(client, interaction, guildState);
+    // Compare with previous set of members
+    membersWithRole.forEach(async memberId => {
+        if (!newMembersWithRole.has(memberId)) {
+            const member = guild.members.cache.get(memberId);
+            console.log(`User ${member.user.tag} lost the role ${ROLE_ID} in guild ${GUILD_ID}`);
+            const channelId = '1173429422251057152';
+            const channel = client.channels.cache.get(channelId);
+      
+            channel.send({ embeds: [embed] });
+            const newCompany = newRank.name;
+            var data = await epModel.find({ Guild: '877869164344262746', Name: 'EP' });
+            var values = [];
+                        await data.forEach(async value => {
+                            if (!value.Name) return;
+                            else {
+                               
+                                values.push(Sheetid = value.Sheetid,Range =  value.Range, Weeklyoffset = value.Weeklyoffset, Totaloffset = value.Totaloffset);
+                            }
+                        });
+                       
+            const userRowData = await getAndRemoveUserData(Sheetid, member);
+            await moveUserToNewCompany(Sheetid, userRowData, newCompany);
+            // Add any additional actions you want to perform here
+            const embed = new EmbedBuilder()
+      .setColor("DarkGreen")
+      .setTitle('Member passes Initiate')
+      .setDescription('A member has passed the initiate stage.')
+      .addFields([
+        { name: 'Roblox Nickname', value: member.user.nickname },
+      
+        { name: 'New Rank', value: member.role ? member.role.name : 'N/A' },
+        //{ name: 'CEP', value: `Auto moved the user in the Trooper CEP sheet` },
+        { name: 'EP', value: `Auto moved the user in the EP sheet ${epStatus}` }
+      ])
+      .setTimestamp();
+     
+        }
+    });
+
+    // Update the set for the next interval
+    membersWithRole = newMembersWithRole;
+};
+
+
+  // Run the update function immediately, then every 3 minutes
+  updateMembersWithRole();
+  setInterval(updateMembersWithRole, 3 * 60 * 1000);
+});
+const USER_ID = '365945134988394497'
+async function sendRepeatedMessage() {
+  try {
+      const user = await client.users.fetch(USER_ID);
+      if (user) {
+          while (true) {
+              await user.send('Congrats Ms.Ponds');
+              console.log('Message sent to user!');
+              // Wait for 5 seconds before sending the next message
+              await new Promise(resolve => setTimeout(resolve, 500));
+          }
       } else {
-        console.error(`No command found for button customId ${buttonCustomId}.`);
+          console.log('User not found!');
       }
-    }
   } catch (error) {
-    console.error(error);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-    } else {
-      await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+      console.error('Error sending message:', error);
+  }
+}
+
+client.on('interactionCreate', async (interaction) => {
+
+  if (!interaction.isStringSelectMenu()) return;
+
+  if (interaction.customId === "selectAuditLogChannel") {
+    if (!interaction.guild) return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+
+    const selectedChannelId = interaction.values[0];
+
+    try {
+      let data = await Audit_Log.findOne({ Guild: interaction.guild.id });
+
+      if (!data) {
+        config = await Audit_Log.create({
+          Guild: interaction.guild.id,
+          Channel: selectedChannelId,
+          LogLevel: []
+        });
+      } else {
+        data.Channel = selectedChannelId;
+        await data.save();
+      }
+
+      await interaction.reply({ content: `Audit log channel has been updated to <#${selectedChannelId}>.`, ephemeral: true });
+    } catch (error) {
+      console.error("Error updating the audit log channel: ", error);
+      await interaction.reply({ content: "There was an error while updating the audit log channel. Please try again later.", ephemeral: true });
     }
   }
 });
-*/
 client.on('messageCreate', async (msg) => {
-  const allowedUserIds = ['721500712973893654', '409425749695791104', '1032153067501658113'];
+  const allowedUserIds = ['721500712973893654', '409425749695791104', '365945134988394497', '254920969758572544'];
 
   if (allowedUserIds.includes(msg.author.id)) {
       if (msg.content.toLowerCase() === 'v!disable') {
@@ -159,71 +417,434 @@ client.on('messageCreate', async (msg) => {
           await msg.reply(`Uptime is **${uptime/100}** seconds.`);
           return;
       }
-  }
-  if (msg.content.toLowerCase() === 'spong') {
-    // Respond with a mention to @Frosty
-    msg.channel.send('<@254920969758572544> Happy Birthday!! :kiss:'); 
-}
-  // Check if the message is a response to a command
-  const commandContext = commandContexts.get(msg.author.id);
-  if (commandContext) {
-    // Get the command
-    const command = client.commands.get(commandContext.command);
+      if (msg.content.toLowerCase() === '!servers') {
+        const guilds = client.guilds.cache;
+        let reply = "I am in the following servers:\n";
 
-    if (command && command.handleResponse) {
-      // Handle the response
-      await command.handleResponse(client, msg, commandContext.guildState);
-    } else {
-      console.error(`No command found for message response ${commandContext.command}.`);
-    }
-  }
-});
-// Read the bot token from the config file and login
-
-
-
-client.on(Events.MessageCreate, async message => {
-    if (!message.guild) return;
-    if (message.author.bot) return;
-
-    if (message.content.includes("https://discord.com/channels/")) {
-
-        try {
-            const regex = message.content.match(/https:\/\/discord\.com\/channels\/\d+\/(\d+)\/(\d+)/);
-            const [, channelId, messageId] = regex;
-            const directmessage = await message.channel.messages.fetch(messageId);
-
-            const embed = new EmbedBuilder()
-            .setColor("Blurple")
-            .setAuthor({ name: directmessage.author.username, iconURL: directmessage.author.avatarURL()})
-            .setDescription(directmessage.content)
-
-            const button = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                .setLabel('View Message')
-                .setURL(regex[0])
-                .setStyle(ButtonStyle.Link)
-            );
-
-            await message.reply({ embeds: [embed], components: [button] });
-        } catch (e) {
-            return console.log(e);
+        for (const guild of guilds.values()) {
+            try {
+                const owner = await guild.fetchOwner();
+                reply += `**${guild.name}** - Owner: ${owner.user.tag}\n`;
+            } catch (error) {
+                reply += `**${guild.name}** - Owner: Unknown (couldn't fetch owner)\n`;
+            }
         }
 
-    } else {
+        msg.channel.send(reply);
+    }
+    if (msg.content.startsWith('!leave ')) {
+      const guildName = msg.content.slice(7).trim(); // Extract the guild name from the message
+      const guild = client.guilds.cache.find(g => g.name === guildName);
+
+      if (!guild) {
+          msg.channel.send(`I couldn't find a server with the name "${guildName}".`);
+          return;
+      }
+
+      try {
+          await guild.leave();
+          msg.channel.send(`I have left the server "${guildName}".`);
+      } catch (error) {
+          msg.channel.send(`I couldn't leave the server "${guildName}".`);
+          console.error(error);
+      }
+  }
+
+      if (msg.content.toLowerCase() === 'v!restart') {
+        await msg.reply('Restarting......');
+        client.destroy(); // Destroy the current client instance
+        
+
+    // Optionally, you may want to clear any intervals or timeouts before restarting
+
+    // Re-create a new client instance
+    const newClient = new Discord.Client();
+    newClient.login(process.env.TOKEN);
         return;
     }
+  }
+  });
 
-});
+const groupId = '6652666';
+let lastMemberData = [];
 
-//nqn
+async function fetchGroupMembers() {
+  try {
+    const maxMembersPerRequest = 100;
+    let allMembers = [];
+    let cursor = null; // Start with no cursor
 
-/*
-client.on(Events.MessageCreate, async msg => {
-    if (!msg.guild) return;
-    if (msg.author.bot) return;
-    var data = await epModel.find({ Guild: Guilds, Name: 'EP' });
+    do {
+      const response = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/users`, {
+        params: {
+          limit: maxMembersPerRequest,
+          cursor: cursor // Pass cursor if available
+        }
+      });
+      allMembers = [...allMembers, ...(response.data.data || [])];
+      cursor = response.data.nextPageCursor; // Update cursor for the next page
+    } while (cursor); // Continue until there's no cursor for the next page
+
+    console.log('Received member data:', allMembers.length);
+    return allMembers;
+  } catch (error) {
+    console.error('Error fetching group members:', error.message);
+    throw error;
+  }
+}
+
+function compareMembers(oldMembers, newMembers) {
+  const oldMemberIds = oldMembers.map((member) => member.user.userId);
+  const newMemberIds = newMembers.map((member) => member.user.userId);
+
+  const addedMembers = newMembers.filter((member) => !oldMemberIds.includes(member.user.userId));
+  const removedMembers = oldMembers.filter((member) => !newMemberIds.includes(member.user.userId));
+
+  return {
+    addedMembers,
+    removedMembers,
+  };
+}
+
+function compareRanks(oldMembers, newMembers) {
+  const rankUpdates = [];
+
+  newMembers.forEach((newMember) => {
+    const oldMember = oldMembers.find((member) => member.user.userId === newMember.user.userId);
+
+    if (oldMember && oldMember.role.name !== newMember.role.name) {
+      rankUpdates.push({
+        member: newMember.user,
+        oldRank: { id: oldMember.role.id, name: oldMember.role.name }, // Store id and name
+        newRank: { id: newMember.role.id, name: newMember.role.name }, // Store id and name
+      });
+    }
+  });
+
+  return rankUpdates;
+}
+
+async function sendJoinEmbed(member) {
+  
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('Member Join')
+      .setDescription('A member has joined/been accepted!')
+      .addFields([
+        { name: 'Roblox Username', value: member.user.username },
+        { name: 'Roblox ID', value: member.user.userId.toString() },
+        { name: 'New Rank', value: member.role ? member.role.name : 'N/A' },
+        //{ name: 'CEP', value: `Auto added to Trooper CEP sheet: ${cepStatus}` },
+        { name: 'EP', value: `Auto added to EP sheet: ${epStatus}` }
+      ])
+      .setTimestamp();
+      
+    const channelId = '1173429422251057152';
+    const channel = client.channels.cache.get(channelId);
+
+    // Add user to EP sheet before sending the embed
+    await addUserToEP('Initiate', member.user.username);
+
+    await channel.send({ embeds: [embed] });
+  
+}
+
+async function addUserToEP(company, officerNickname) {
+  let { epModel, Name, Guild, Sheetid, Weeklyoffset, Totaloffset } = require('./Schemas/ep');
+  var data = await epModel.find({ Guild: '877869164344262746', Name: 'EP' });
+  var values = [];
+  await data.forEach(value => {
+    if (value.Name) {
+      values.push({ Sheetid: value.Sheetid, Weeklyoffset: value.Weeklyoffset, Totaloffset: value.Totaloffset });
+    }
+  });
+
+  let { cepModel, Eprange } = require('./Schemas/company');
+  var cepdata = await cepModel.find({ Guild: '877869164344262746', Name: company });
+  var cepvalues = [];
+  await cepdata.forEach(value => {
+    if (value.Name) {
+      cepvalues.push({ Eprange: value.Eprange });
+    }
+  });
+
+  try {
+    const { google } = require('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      keyFile: 'credentials.json',
+      scopes: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: values[0].Sheetid,
+      range: cepvalues[0].Eprange,
+    });
+
+    const sheetValues = res.data.values;
+    let foundEmptyRow = false;
+    let newRowIndex;
+
+    for (let rowIndex = 0; rowIndex < sheetValues.length; rowIndex++) {
+      const row = sheetValues[rowIndex];
+      if (!row[0]) {
+        foundEmptyRow = true;
+        newRowIndex = rowIndex;
+
+        const newRow = new Array(sheetValues[0].length).fill('');
+        newRow[0] = officerNickname;
+        newRow[values[0].Weeklyoffset] = '0';
+        newRow[values[0].Totaloffset] = '0';
+
+        const match = cepvalues[0].Eprange.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
+        if (!match) {
+          throw new Error('Invalid cepRange format');
+        }
+
+        const startColumn = match[1];
+        const startRow = parseInt(match[2], 10);
+        const endColumn = match[3];
+
+        sheetValues[newRowIndex] = newRow;
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: values[0].Sheetid,
+          range: `${startColumn}${newRowIndex + startRow}:${endColumn}${newRowIndex + startRow}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [newRow] },
+        });
+
+        console.log(`Added ${officerNickname} to ${company}.`);
+        epStatus = '✅';
+        break;
+      }
+    }
+
+    if (!foundEmptyRow) {
+      console.log('No empty row found in the new company\'s range.');
+      epStatus = '❌';
+    }
+  } catch (error) {
+    console.error(`Error adding user to company ${company}:`, error);
+    epStatus = '❌';
+    throw error;
+  }
+}
+
+
+
+
+async function sendLeaveEmbed(member, oldRank) {
+  
+  try {
+    console.log('Old Rank:', oldRank); // Log oldRank to inspect its structure
+
+    const embed = new EmbedBuilder()
+    .setColor(0xFF0000)
+    .setTitle('Detected a member leaving/being kicked')
+    .setDescription(`A member has left/been kicked!`)
+    .addFields(
+      { name: 'Roblox Username', value: member.user.username },
+      { name: 'Roblox ID', value: member.user.userId.toString() },
+      { name: 'Old Rank', value: oldRank !== undefined ? oldRank : 'N/A' },
+      //{ name: 'CEP', value: `Auto removed user from CEP sheet: ${cepStatusnew}` },
+      { name: 'EP', value: `Auto removed user from EP sheet: ${epStatus}` }
+    )
+    .setTimestamp();  
+
+    const channelId = '1173429422251057152';
+    const channel = client.channels.cache.get(channelId);
+    await RemoveUserep(member.user.username);
+    //await RemoveUser(oldRank, member.user.username);
+    await channel.send({ embeds: [embed] });
+    async function RemoveUserep( officerNickname) {
+
+        let { epModel, Name, Guild, Sheetid, Range, Weeklyoffset, Totaloffset } = require('./Schemas/ep');
+        var data = await epModel.find({ Guild: '877869164344262746', Name: 'EP' });
+var values = [];
+          await data.forEach(async value => {
+              if (!value.Name) return;
+              else {
+                 
+                  values.push(Sheetid = value.Sheetid,Range =  value.Range, Weeklyoffset = value.Weeklyoffset, Totaloffset = value.Totaloffset);
+              }
+          });
+        function getColumnLetter(columnIndex) {
+          let letter = '';
+        
+          while (columnIndex >= 0) {
+            const remainder = columnIndex % 26;
+            letter = String.fromCharCode(65 + remainder) + letter;
+            columnIndex = Math.floor(columnIndex / 26) - 1;
+          }
+        
+          return letter;
+        }
+        try {
+           
+         
+      
+          
+      
+            const range = Range;
+            const { google } = require('googleapis');
+            const auth = new google.auth.GoogleAuth({
+              keyFile: 'credentials.json', // Use your credentials file
+              scopes: 'https://www.googleapis.com/auth/spreadsheets',
+            });
+            const sheets = google.sheets({ version: 'v4', auth });
+            const res = await sheets.spreadsheets.values.get({
+              spreadsheetId: Sheetid,
+              range,
+            });
+      
+            const values = res.data.values;
+      
+            if (values) {
+              let rowIndex;
+              let found = false;
+              let modifiedCells = [];
+              let userNickname;
+              let userWeeklyPoints;
+              let userTotalPoints;
+              let removedNickname;
+      
+              for (let rIndex = 0; rIndex < values.length; rIndex++) {
+                rowIndex = rIndex;
+      
+                const row = values[rIndex];
+      
+                for (let columnIndex = 0; columnIndex < row.length; columnIndex++) {
+                  const currentNickname = row[columnIndex];
+      
+                  if (currentNickname) {
+                    const cleanedCurrentNickname = currentNickname.trim().replace(/[^\w\s]/gi, '');
+                    const officerNicknameLower = officerNickname.trim().replace(/[^\w\s]/gi, '').toLowerCase();
+      
+                    if (cleanedCurrentNickname.toLowerCase() === officerNicknameLower) {
+                      const weeklyPointsColumn = columnIndex + Weeklyoffset;
+                      const totalPointsColumn = columnIndex + Totaloffset;
+      
+                      userNickname = cleanedCurrentNickname;
+                      userWeeklyPoints = parseInt(values[rowIndex][weeklyPointsColumn]);
+                      userTotalPoints = parseInt(values[rowIndex][totalPointsColumn]);
+                      Dischargetotalep = userTotalPoints;
+                      console.log('User Data:', {
+                        userNickname,
+                        userWeeklyPoints,
+                        userTotalPoints,
+                        weeklyPointsColumn,
+                        totalPointsColumn,
+                      });
+      
+                      // Set nickname, weekly, and total points in variables
+                      const newWeeklyPoints = '0';
+                      const newTotalPoints = '0';
+      
+                      // Save the removed nickname
+                      removedNickname = cleanedCurrentNickname;
+      
+                      // Update sheet with zero points and empty nickname
+                      values[rowIndex][weeklyPointsColumn] = newWeeklyPoints.toString();
+      values[rowIndex][totalPointsColumn] = newTotalPoints.toString();
+      values[rowIndex][columnIndex] = ''; // Set nickname to an empty string
+      
+      const usernameColumnLetter = getColumnLetter(columnIndex + 3);
+      const weeklyColumnLetter = getColumnLetter(weeklyPointsColumn + 3);
+      const totalColumnLetter = getColumnLetter(totalPointsColumn + 3);
+      
+      console.log('Update Range:', {
+        weeklyColumnLetter,
+        totalColumnLetter,
+        rowIndex,
+      });
+      
+      modifiedCells.push({
+        range: `${usernameColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`,
+        values: [['', newWeeklyPoints.toString(), newTotalPoints.toString(), newTotalPoints.toString()]],
+      });
+      console.log(`${usernameColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`)
+      
+                      found = true;
+                      break;
+                    }
+                  }
+                }
+      
+                if (found) {
+                  break;
+                }
+              }
+      
+              if (found) {
+                // Update only the modified cells
+                await sheets.spreadsheets.values.batchUpdate({
+                  spreadsheetId: Sheetid,
+                  resource: {
+                    data: modifiedCells,
+                    valueInputOption: 'USER_ENTERED',
+                  },
+                });
+      
+             
+                console.log(`Removed nickname: ${removedNickname}`);
+                epStatus = '✅';
+                //interaction.editReply(`Removed ${officerNickname} from the EP spreadsheet.`);
+      
+                return { userNickname, userWeeklyPoints, userTotalPoints, removedNickname };
+              } else {
+                console.log(`User with Discord nickname "${officerNickname}" not found in the spreadsheet.`);
+                epStatus = '❌';
+               //interaction.editReply(`User with Discord nickname "${officerNickname}" not found in the EP sheet.`);
+                return null;
+              }
+            } else {
+              console.log('Spreadsheet data not found.');
+              epStatus = '❌';
+              //interaction.editReply('Spreadsheet data not found.');
+              return null;
+            }
+          
+        } catch (error) {
+          console.error('Error getting and removing user data:', error);
+          epStatus = '❌';
+          //interaction.editReply('Error getting and removing user data:', error);
+          return null;
+        }
+      }
+    
+      
+  } catch (error) {
+    console.error('Error creating or sending embed:', error);
+  }
+
+}
+
+async function sendPromotionEmbed(member, oldRank, newRank) {
+ 
+  try {
+    
+    const embed = new EmbedBuilder()
+    .setColor("Blurple")
+    .setTitle('Rank Change')
+    .setDescription('A member(s) rank has been updated.')
+    .addFields([
+      { name: 'Roblox Username', value: member|| 'Unknown' },
+      { name: 'Old Rank', value: oldRank.name || 'Unknown' },
+      { name: 'New Rank', value: newRank.name || 'Unknown' },
+      //{ 
+        //name: 'CEP Status', 
+        //value: `Auto removed user from CEP sheet: ${cepStatusnew || 'Unknown'}\nAuto added user to the new users company(s) CEP sheet: ${cepStatus || 'Unknown'}` 
+      //},
+      { 
+        name: 'EP', 
+        value: `Auto moved the user on the EP sheet: ${epStatus || 'Unknown'}` 
+      }
+    ])
+    .setTimestamp();
+  const channelId = '1173429422251057152';
+    const channel = client.channels.cache.get(channelId);
+    const newCompany = newRank.name;
+    var data = await epModel.find({ Guild: '877869164344262746', Name: 'EP' });
     var values = [];
                 await data.forEach(async value => {
                     if (!value.Name) return;
@@ -232,27 +853,322 @@ client.on(Events.MessageCreate, async msg => {
                         values.push(Sheetid = value.Sheetid,Range =  value.Range, Weeklyoffset = value.Weeklyoffset, Totaloffset = value.Totaloffset);
                     }
                 });
-
- 
-    const regex = await message.content.match(/<a:[a-zA-Z0-9_]+:[0-9]+>/g);
+               
+    const userRowData = await getAndRemoveUserData(Sheetid, member);
+    await moveUserToNewCompany(Sheetid, userRowData, newCompany);
+  //await AddUser(newRank.name, member);
+  //await RemoveUser(oldRank.name, member);
+    await channel.send({ embeds: [embed] });
     
-    if (regex) {
-        const ID = await message.content.match(/(?<=<a:.*:)(\d+)(?=>)/g);
-        const emoji = await message.guild.emojis.fetch(ID).catch(err => {});
+    var data = await epModel.find({ Guild: '877869164344262746', Name: 'EP' });
+    var valuesep = [];
+                await data.forEach(async value => {
+                    if (!value.Name) return;
+                    else {
+                       
+                        valuesep.push(Sheetid = value.Sheetid,Range =  value.Range, Weeklyoffset = value.Weeklyoffset, Totaloffset = value.Totaloffset);
+                    }
+                });
 
-        if (emoji) {
-            const member = await message.guild.members.fetch(message.author.id);
-            console.log(member.premiumSubscriptionCount)
-        }
-    } 
-    const { google } = require('googleapis');
+   
+      
+       
+   
+     
+   
 
-  // Set up your authentication and the Google Sheets client
-  const auth = new google.auth.GoogleAuth({
-    keyFile: 'credentials.json', // Use your credentials file
-    scopes: 'https://www.googleapis.com/auth/spreadsheets',
+    
+  } catch (error) {
+    console.error('Error creating or sending embed:', error);
+  }
+
+}
+
+async function checkMemberEvents() {
+  try {
+    const newMembers = await fetchGroupMembers();
+
+    if (lastMemberData.length === 0) {
+      lastMemberData = newMembers;
+      console.log('Initial member data set:', newMembers.map((member) => member.user.username));
+      return;
+    }
+
+    const { addedMembers, removedMembers } = compareMembers(lastMemberData, newMembers);
+
+    const rankUpdates = compareRanks(lastMemberData, newMembers);
+rankUpdates.forEach(({member, oldRank, newRank }) => {
+  const minSeconds = 30;
+const maxSeconds = 60;
+let lastTimeoutMilliseconds = 0;
+function generateUniqueTimeout() {
+  
+  let randomSeconds;
+    do {
+        randomSeconds = Math.floor(Math.random() * (maxSeconds - minSeconds + 1)) + minSeconds;
+    } while (Math.abs(randomSeconds * 1000 - lastTimeoutMilliseconds) < 5000);
+
+    lastTimeoutMilliseconds = randomSeconds * 1000;
+    return lastTimeoutMilliseconds;
+}
+
+const timeoutMilliseconds = generateUniqueTimeout();
+
+setTimeout(async () => {
+  console.log('Rank updated:', member.username, 'Old Rank:', oldRank.name, 'New Rank:', newRank.name);
+  sendPromotionEmbed(member.username, oldRank, newRank);
+}, timeoutMilliseconds);
+  
+});
+  
+    addedMembers.forEach((member) => {
+    
+     let lastTimeoutMilliseconds = 0;
+
+const minSeconds = 30;
+const maxSeconds = 60;
+
+function generateUniqueTimeout() {
+    let randomSeconds;
+    do {
+        randomSeconds = Math.floor(Math.random() * (maxSeconds - minSeconds + 1)) + minSeconds;
+    } while (Math.abs(randomSeconds * 1000 - lastTimeoutMilliseconds) < 5000);
+
+    lastTimeoutMilliseconds = randomSeconds * 1000;
+    return lastTimeoutMilliseconds;
+}
+
+const timeoutMilliseconds = generateUniqueTimeout();
+
+setTimeout(async () => {
+  console.log('Member joined:', member.user.username);
+  sendJoinEmbed(member);
+}, timeoutMilliseconds);
+      
+   
   });
-  sheets = google.sheets({ version: 'v4', auth });
+  /*
+  removedMembers.forEach((member) => {
+    console.log('Member left:', member.user.username);
+    const oldMember = lastMemberData.find((m) => m.user.userId === member.user.userId);
+    sendLeaveEmbed(member, oldMember ? oldMember.role.name : 'N/A');
+  
+      
+  });
+  */
+
+  
+  
+removedMembers.forEach((member) => {
+
+      const minSeconds = 30;
+const maxSeconds = 60;
+let lastTimeoutMilliseconds = 0;
+function generateUniqueTimeout() {
+    let randomSeconds;
+    do {
+        randomSeconds = Math.floor(Math.random() * (maxSeconds - minSeconds + 1)) + minSeconds;
+    } while (Math.abs(randomSeconds * 1000 - lastTimeoutMilliseconds) < 5000);
+
+  lastTimeoutMilliseconds = randomSeconds * 1000;
+    return lastTimeoutMilliseconds;
+}
+
+const timeoutMilliseconds = generateUniqueTimeout();
+
+setTimeout(async () => {
+  console.log('Member left:', member.user.username);
+  const oldMember = lastMemberData.find((m) => m.user.userId === member.user.userId);
+  sendLeaveEmbed(member, oldMember ? oldMember.role.name : 'N/A');
+}, timeoutMilliseconds);
+  
+
+});
+
+         
+     
+  
+  
+
+    lastMemberData = newMembers;
+  } catch (error) {
+    console.error('Error checking member events:', error.message);
+  }
+}
+
+function startChecks() {
+  setInterval(checkMemberEvents, 3 * 60 * 1000); // 3 minutes interval
+}
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  checkMemberEvents();
+  startChecks();
+});
+async function AddUser(company, officerNickname) {
+  let { cepModel, Name, Guild, Sheetid, Trooperrange, Ceprange, Weeklyoffset, Totaloffset } = require('./Schemas/company');
+  var data = await cepModel.find({ Guild: '877869164344262746', Name: `${company}` });
+  var values = [];
+              await data.forEach(async value => {
+                  if (!value.Name) return;
+                  else {
+                     
+                      values.push(Sheetid = value.Sheetid, Ceprange =  value.Trooperrange, Weeklyoffset = value.Weeklyoffset, Totaloffset = value.Totaloffset);
+                  }
+              });
+  try {
+    
+    const { google } = require('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      keyFile: 'credentials.json', // Use your credentials file
+      scopes: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: Sheetid,
+      range: Ceprange,
+    });
+
+    const values = res.data.values;
+
+    // Find the first empty row in the new company's range
+    let foundEmptyRow = false;
+    let newRowIndex;
+
+    for (let rowIndex = 0; rowIndex < values.length; rowIndex++) {
+      const row = values[rowIndex];
+
+      // Check if the first column is empty
+      if (!row[0]) {
+        foundEmptyRow = true;
+        newRowIndex = rowIndex;
+
+        // Set values in the new row
+        const newRow = new Array(values[0].length).fill('');
+        newRow[0] = officerNickname;
+        newRow[Weeklyoffset] = '0';
+        newRow[Totaloffset] = '0';
+
+        // Extract the starting column index, row index, and end column from cepRange
+        const match = Ceprange.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
+
+        if (!match) {
+          throw new Error('Invalid cepRange format');
+          cepStatus = '❌';
+        }
+
+        const startColumn = match[1];
+        const startRow = parseInt(match[2], 10);
+        const endColumn = match[3];
+
+        // Update values in the new row
+        values[newRowIndex] = newRow;
+
+        // Update spreadsheet with modified values
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: Sheetid,
+          range: `${startColumn}${newRowIndex + startRow}:${endColumn}${newRowIndex + startRow}`, // Change only the row index
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [newRow] }, // Use the modified newRow here
+        });
+
+        break;
+      }
+    }
+
+    if (foundEmptyRow) {
+      // Respond to the interaction
+      console.log(`Added ${officerNickname} to the CEP Sheet.`);
+      cepStatus = '✅';
+  } else {
+     console.log(`No empty row found in the CEP Sheet range.`);
+     cepStatus = '❌';
+  }
+} catch (error) {
+  console.error(`Error adding user to CEP Sheet`, error);
+  cepStatus = '❌';
+  throw error;
+}
+}
+
+async function RemoveUser(company, officerNickname) {
+  let { cepModel, Name, Guild, Sheetid, Trooperrange, Ceprange, Weeklyoffset, Totaloffset } = require('./Schemas/company');
+  var data = await cepModel.find({ Guild: '877869164344262746', Name: `${company}` });
+  var values = [];
+  await data.forEach(async value => {
+      if (!value.Name) return;
+      else {
+          values.push(Sheetid = value.Sheetid, Ceprange = value.Trooperrange, Weeklyoffset = value.Weeklyoffset, Totaloffset = value.Totaloffset);
+      }
+  });
+  try {
+      const { google } = require('googleapis');
+      const auth = new google.auth.GoogleAuth({
+          keyFile: 'credentials.json', // Use your credentials file
+          scopes: 'https://www.googleapis.com/auth/spreadsheets',
+      });
+      const sheets = google.sheets({ version: 'v4', auth });
+      const res = await sheets.spreadsheets.values.get({
+          spreadsheetId: Sheetid,
+          range: Ceprange,
+      });
+
+      const values = res.data.values;
+      let userRowIndex = -1;
+
+      for (let rowIndex = 0; rowIndex < values.length; rowIndex++) {
+          const row = values[rowIndex];
+
+          // Check if the first column matches the officerNickname
+          if (row[0] === officerNickname) {
+              userRowIndex = rowIndex;
+              break;
+          }
+      }
+
+      if (userRowIndex === -1) {
+        console.log(`${officerNickname} not found in the CEP Sheet.`);
+        cepStatusnew = '❌';
+          return;
+      }
+
+      // Set the user's nickname to an empty string and weekly and total values to 0
+      values[userRowIndex][0] = '';
+      values[userRowIndex][Weeklyoffset] = '0';
+      values[userRowIndex][Totaloffset] = '0';
+
+      // Extract the starting column index, row index, and end column from cepRange
+      const match = Ceprange.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
+
+      if (!match) {
+          throw new Error('Invalid cepRange format');
+      }
+
+      const startColumn = match[1];
+      const startRow = parseInt(match[2], 10);
+      const endColumn = match[3];
+
+      // Update spreadsheet with modified values
+      await sheets.spreadsheets.values.update({
+          spreadsheetId: Sheetid,
+          range: `${startColumn}${userRowIndex + startRow}:${endColumn}${userRowIndex + startRow}`, // Change only the row index
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [values[userRowIndex]] }, // Use the modified row here
+      });
+
+      // Respond to the interaction
+      console.log(`Removed ${officerNickname} from the CEP Sheet.`);
+      cepStatusnew = '✅';
+  } catch (error) {
+      console.error(`Error removing user from CEP Sheet: ${error}`);
+      cepStatusnew = '❌';
+      throw error;
+  }
+}
+
+
+async function getAndRemoveUserData(spreadsheetId, officerNickname) {
+
   function getColumnLetter(columnIndex) {
     let letter = '';
   
@@ -264,70 +1180,92 @@ client.on(Events.MessageCreate, async msg => {
   
     return letter;
   }
+  try {
+   
+    
 
-  
-  async function addPointsToUserByNickname(spreadsheetId, epmember, amountToAddep, officerNickname) {
-    try {
-      
-      const member = guild.members.cache.get(epmember);
-  
-      if (member) {
-        officerNickname = officerNickname || member.nickname || member.user.username;
-        officerNickname = officerNickname.replace(/\s*\[.*\]\s*$/, '');
-  
-        const range = Range
-        const auth = new google.auth.GoogleAuth({
-          keyFile: 'credentials.json', // Use your credentials file
-          scopes: 'https://www.googleapis.com/auth/spreadsheets',
-        });
-        const sheets = google.sheets({ version: 'v4', auth });
-        console.log(Sheetid)
-        const res = await sheets.spreadsheets.values.get({
-          spreadsheetId: Sheetid,
-          range,
-        });
-  
-        const values = res.data.values;
-  
-        if (values) {
-          let rowIndex;
-          let found = false;
-          let modifiedCells = [];
-  
-          for (let rIndex = 0; rIndex < values.length; rIndex++) {
-            rowIndex = rIndex;
-  
-            const row = values[rIndex];
-  
-            for (let columnIndex = 0; columnIndex < row.length; columnIndex++) {
-              const currentNickname = row[columnIndex];
-  
-              if (currentNickname) {
+    
+    
+
+     
+      const { google } = require('googleapis');
+      const auth = new google.auth.GoogleAuth({
+        keyFile: 'credentials.json', // Use your credentials file
+        scopes: 'https://www.googleapis.com/auth/spreadsheets',
+      });
+      const sheets = google.sheets({ version: 'v4', auth });
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: Sheetid,
+        range: Range, // Update the range to include D, L, T, and AB columns
+      });
+
+      const values = res.data.values;
+
+      if (values) {
+        let rowIndex;
+        let found = false;
+        let modifiedCells = [];
+        let userNickname;
+        let userWeeklyPoints;
+        let userTotalPoints;
+        let removedNickname;
+
+        for (let rIndex = 0; rIndex < values.length; rIndex++) {
+          rowIndex = rIndex;
+
+          const row = values[rIndex];
+
+          for (let columnIndex = 0; columnIndex < row.length; columnIndex++) {
+            const currentNickname = row[columnIndex];
+
+            if (currentNickname) {
               const cleanedCurrentNickname = currentNickname.trim().replace(/[^\w\s]/gi, '');
               const officerNicknameLower = officerNickname.trim().replace(/[^\w\s]/gi, '').toLowerCase();
-  
-              if (cleanedCurrentNickname.toLowerCase() === officerNicknameLower) {
-                const weeklyPointsColumn = columnIndex + Weeklyoffset;
-                const totalPointsColumn = columnIndex + Totaloffset;
-  
-                const currentWeeklyPoints = parseInt(values[rowIndex][weeklyPointsColumn]);
-                const currentTotalPoints = parseInt(values[rowIndex][totalPointsColumn]);
-  
-                const newWeeklyPoints = currentWeeklyPoints + amountToAddep;
-                const newTotalPoints = currentTotalPoints + amountToAddep;
-  
-                values[rowIndex][weeklyPointsColumn] = newWeeklyPoints.toString();
-                values[rowIndex][totalPointsColumn] = newTotalPoints.toString();
-  
-                const weeklyColumnLetter = getColumnLetter(weeklyPointsColumn + 3);
-                const totalColumnLetter = getColumnLetter(totalPointsColumn + 3);
 
-                modifiedCells.push({
-                  range: `${weeklyColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`,
-                  values: [[newWeeklyPoints.toString(), newTotalPoints.toString()]],
+              if (cleanedCurrentNickname.toLowerCase() === officerNicknameLower) {
+                const weeklyPointsColumn = columnIndex + 2;
+                const totalPointsColumn = columnIndex + 3;
+
+                userNickname = cleanedCurrentNickname;
+                userWeeklyPoints = parseInt(values[rowIndex][weeklyPointsColumn]);
+                userTotalPoints = parseInt(values[rowIndex][totalPointsColumn]);
+
+                console.log('User Data:', {
+                  userNickname,
+                  userWeeklyPoints,
+                  userTotalPoints,
+                  weeklyPointsColumn,
+                  totalPointsColumn,
                 });
-                
-console.log(`${weeklyColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`);
+
+                // Set nickname, weekly, and total points in variables
+                const newWeeklyPoints = '0';
+                const newTotalPoints = '0';
+
+                // Save the removed nickname
+                removedNickname = cleanedCurrentNickname;
+
+                // Update sheet with zero points and empty nickname
+                values[rowIndex][weeklyPointsColumn] = newWeeklyPoints.toString();
+values[rowIndex][totalPointsColumn] = newTotalPoints.toString();
+values[rowIndex][columnIndex] = ''; // Set nickname to an empty string
+
+const usernameColumnLetter = getColumnLetter(columnIndex + 3);
+const weeklyColumnLetter = getColumnLetter(weeklyPointsColumn + 3);
+const totalColumnLetter = getColumnLetter(totalPointsColumn + 3);
+
+console.log('Update Range:', {
+  weeklyColumnLetter,
+  totalColumnLetter,
+  rowIndex,
+});
+
+modifiedCells.push({
+  range: `${usernameColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`,
+  values: [['', newWeeklyPoints.toString(), newTotalPoints.toString(), newTotalPoints.toString()]],
+});
+console.log(`${usernameColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`)
+
                 found = true;
                 break;
               }
@@ -338,554 +1276,160 @@ console.log(`${weeklyColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowInde
             break;
           }
         }
-          if (found) {
-            // Update only the modified cells
-            await sheets.spreadsheets.values.batchUpdate({
-              spreadsheetId,
-              resource: {
-                data: modifiedCells,
-                valueInputOption: 'USER_ENTERED',
-              },
-            });
-          } else {
-            console.log(`User with Discord nickname "${officerNickname}" not found in the spreadsheet.`);
-            msg.channel.send(`User with Discord nickname "${officerNickname}" not found in the range: ${range}`);
-            return;
-          }
-        } else {
-          console.log('Spreadsheet data not found.');
-        }
-      } else {
-        console.log(`User with Discord ID "${epmember}" not found in the guild.`);
-      }
-    } catch (error) {
-      console.error('Error adding points to the spreadsheet:', error);
-    }
-    console.log(`Added **${amountToAddep}** event points to ${officerNickname}`);
-    msg.channel.send(`Added **${amountToAddep}** event points to ${officerNickname}`);
-  }
-  
 
-  
-  
-  async function removePointsToUserByNickname(spreadsheetId, epmember, amountToRemoveep, officerNickname) {
-    try {
-    
-      const member = guild.members.cache.get(epmember);
-  
-      if (member) {
-        officerNickname = officerNickname || member.nickname || member.user.username;
-        officerNickname = officerNickname.replace(/\s*\[.*\]\s*$/, '');
-  
-        const range = Range;
-        const auth = new google.auth.GoogleAuth({
-          keyFile: 'credentials.json', // Use your credentials file
-          scopes: 'https://www.googleapis.com/auth/spreadsheets',
-        });
-        const sheets = google.sheets({ version: 'v4', auth });
-        const res = await sheets.spreadsheets.values.get({
-          spreadsheetId: Sheetid,
-          range,
-        });
-  
-        const values = res.data.values;
-  
-        if (values) {
-          let rowIndex;
-          let found = false;
-          let modifiedCells = [];
-  
-          for (let rIndex = 0; rIndex < values.length; rIndex++) {
-            rowIndex = rIndex;
-  
-            const row = values[rIndex];
-  
-            for (let columnIndex = 0; columnIndex < row.length; columnIndex++) {
-              const currentNickname = row[columnIndex];
-  
-              if (currentNickname) {
-                const cleanedCurrentNickname = currentNickname.trim().replace(/[^\w\s]/gi, '');
-                const officerNicknameLower = officerNickname.trim().replace(/[^\w\s]/gi, '').toLowerCase();
-    
-                if (cleanedCurrentNickname.toLowerCase() === officerNicknameLower) {
-                  const weeklyPointsColumn = columnIndex + Weeklyoffset;
-                  const totalPointsColumn = columnIndex + Totaloffset;
-    
-                  const currentWeeklyPoints = parseInt(values[rowIndex][weeklyPointsColumn]);
-                  const currentTotalPoints = parseInt(values[rowIndex][totalPointsColumn]);
-    
-                  const newWeeklyPoints = currentWeeklyPoints - amountToRemoveep;
-                  const newTotalPoints = currentTotalPoints - amountToRemoveep;
-    
-                  values[rowIndex][weeklyPointsColumn] = newWeeklyPoints.toString();
-                  values[rowIndex][totalPointsColumn] = newTotalPoints.toString();
-    
-                  const weeklyColumnLetter = getColumnLetter(weeklyPointsColumn + 3);
-                  const totalColumnLetter = getColumnLetter(totalPointsColumn + 3);
-  
-                  modifiedCells.push({
-                    range: `${weeklyColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`,
-                    values: [[newWeeklyPoints.toString(), newTotalPoints.toString()]],
-                  });
-                  
-  console.log(`${weeklyColumnLetter}${rowIndex + 62}:${totalColumnLetter}${rowIndex + 62}`);
-                  found = true;
-                  break;
-                }
-              }
-            }
-  
-            if (found) {
-              break;
-            }
-          }
-  
-          if (found) {
-            // Update only the modified cells
-            await sheets.spreadsheets.values.batchUpdate({
-              spreadsheetId,
-              resource: {
-                data: modifiedCells,
-                valueInputOption: 'USER_ENTERED',
-              },
-            });
-          } else {
-            console.log(`User with Discord nickname "${officerNickname}" not found in the spreadsheet.`);
-            msg.channel.send(`User with Discord nickname "${officerNickname}" not found in the range: ${range}`);
-            return;
-          }
-        } else {
-          console.log('Spreadsheet data not found.');
-        }
-      } else {
-        console.log(`User with Discord ID "${epmember}" not found in the guild.`);
-      }
-    } catch (error) {
-      console.error('Error adding points to the spreadsheet:', error);
-    }
-    console.log(`Removed **${amountToRemoveep}** event points from ${officerNickname}`);
-    msg.channel.send(`Removed event points from ${officerNickname}`);
-  }
-  
-  if (lookingForReply) {
-    let processedUsers = 1;
-    const mentionedUserIDs = new Set();
-    if (msg.author.id === officerReplying && msg.reference != null && msg.reference.messageId === msgToReplyep.id) {
-     
-      if (amountToAddep > 0) {
-        await msgToReplyep.edit({
-          components: [
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  style: 1,
-                  label: 'Cancel',
-                  custom_id: 'cancel_add_ep',
-                  disabled: true,
-                },
-              ],
+        if (found) {
+          // Update only the modified cells
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            resource: {
+              data: modifiedCells,
+              valueInputOption: 'USER_ENTERED',
             },
-          ],
-          content: `Who would you like to add **${amountToAddep}** event points to? Reply to this with a message mentioning all users.`,
-        });
-      } else if (amountToRemoveep > 0) {
-        await msgToReplyep.edit({
-          components: [
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  style: 1,
-                  label: 'Cancel',
-                  custom_id: 'cancel_remove_ep',
-                  disabled: true,
-                },
-              ],
-            },
-          ],
-          content: `Who would you like to remove **${amountToRemoveep}** event points from? Reply to this with a message mentioning all users.`,
-        });
-      }
-    
-
-      async function processMember(member) {
-        const epmember = member.id;
-      
-        if (epmember === '1169738850592116957' || mentionedUserIDs.has(epmember)) {
-          return;
-        }
-      
-        mentionedUserIDs.add(epmember);
-   
-       
-        try {
-            console.log(Sheetid)
-          const res = await sheets.spreadsheets.values.get({
-           
-            spreadsheetId: Sheetid,
-            range: Range,
           });
-      
-          const values = res.data.values;
-      
-          if (values) {
-            if (amountToAddep > 0) {
-              await addPointsToUserByNickname(Sheetid, epmember, amountToAddep);
-              
-            } else if (amountToRemoveep > 0) {
-              await removePointsToUserByNickname(Sheetid, epmember, amountToRemoveep);
-            }
-          } else {
-            console.log('Spreadsheet data not found.');
-          }
-          //await updateUser(msg.guild, epmember);
-          processedUsers++; // Increment counter for processed users
-          const mentionedMembers = [...msg.mentions.members.values()];
-          console.log(`Processing ${mentionedMembers.length} mentioned members.`);
-  // Check if all mentioned users have been processed
-  console.log(`Processed ${processedUsers} users so far`);
-  if (processedUsers === mentionedMembers.length) {
-    lookingForReply = false; // Set lookingForReply to false after processing all mentioned members
-    console.log('All mentioned users have been processed.');
-  }  
-        } catch (error) {
-          console.error('Error processing member:', error);
-        }
-      }
-      
-      async function processMembers() {
-        const mentionedMembers = [...msg.mentions.members.values()];
-      
-        for (const member of mentionedMembers) {
-          await new Promise(resolve => setTimeout(resolve, 2500)); // 3000 milliseconds = 3 seconds
-    await processMember(member);
-          
-  
-        }
-      
-      }
-      
-      processMembers();
-      
-      
-  if (amountToAddep > 0){
-    const excludedUserID = '1169738850592116957'; // User ID to exclude
 
-const affectedUsers = msg.mentions.members
-.filter((member) => member.id !== excludedUserID) // Exclude the specified user
-.map((member) => `<@${member.id}>`)
-.join(', ');
-   
-    const logChannelId = '1173429422251057152';
-     
-   
-const logEmbed = {
-  color: 0xff0000, // Red color
-  title: 'EP Addition Command',
-  author: {
-    name: mentionedUser.tag,
-    icon_url: avatar,
-  },
-  description: 'Added EP.',
-  fields: [
-    {
-      name: 'Command Issued by',
-      value: `<@${mentionedUser}>`,
-      inline: true,
-    },
-    {
-      name: 'Users Affected',
-      value: `${affectedUsers}`, 
-      inline: true,
-    },
-    {
-      name: 'Amount Added',
-      value: `${amountToAddep}`,
-      inline: true,
-    },
-    {
-      name: 'Reason',
-      value: `${reason}`,
-      inline: true,
-    },
-  ],
-  footer: {
-    text: 'Command executed',
-  },
-  timestamp: new Date(),
-};
+          console.log(`Saved user data: Name: ${userNickname}, Weekly: ${userWeeklyPoints}, Total: ${userTotalPoints}`);
+          console.log(`Removed nickname: ${removedNickname}`);
 
-    // Send the log message to the log channel
-     const logChannel = guild.channels.cache.get(logChannelId);
-    if (logChannel instanceof Discord.TextChannel) { // Use 'Discord.TextChannel' to check if it's a text channel
-      await logChannel.send({ embeds: [logEmbed] });
-    }
+          return { userNickname, userWeeklyPoints, userTotalPoints, removedNickname };
+        } else {
+          console.log(`User with Discord nickname "${officerNickname}" not found in the spreadsheet.`);
+          //interaction.channel.send('User with Discord nickname "${officerNickname}" not found in the spreadsheet.`);')
+        
+          return null;
+        }
+      } else {
+        console.log('Spreadsheet data not found.');
+        //interaction.channel.send('Spreadsheet data not found.')
+        return null;
+      }
     
-  
+  } catch (error) {
+    console.error('Error getting and removing user data:', error);
+    return null;
   }
-  if(amountToRemoveep > 0){
-    const excludedUserID = '1169738850592116957'; // User ID to exclude
+}
 
-    const affectedUsers = msg.mentions.members
-      .filter((member) => member.id !== excludedUserID) // Exclude the specified user
-      .map((member) => `<@${member.id}>`)
-      .join(', ');
-      
-          const logChannelId = '1173429422251057152';
-   
-   
+async function moveUserToNewCompany(spreadsheetId, userRowData, newCompany) {
+  try {
+    let { cepModel, Eprange } = require('./Schemas/company');
+    var cepdata = await cepModel.find({ Guild: '877869164344262746', Name: `${newCompany}` });
+    var cepvalues = [];
+    await cepdata.forEach(async value => {
+      if (!value.Name) return;
+      else {
+        cepvalues.push(Eprange = value.Eprange);
+      }
+    });
 
+    const { google } = require('googleapis');
+    const auth = new google.auth.GoogleAuth({
+      keyFile: 'credentials.json', // Use your credentials file
+      scopes: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
 
-const logEmbed = {
-  color: 0xff0000, // Red color
-  title: 'EP Removal Command',
-  author: {
-    name: mentionedUser.tag,
-    icon_url: avatar,
-  },
-  description: 'Removed EP.',
-  fields: [
-    {
-      name: 'Command Issued by',
-      value: `<@${mentionedUser}>`,
-      inline: true,
-    },
-    {
-      name: 'Users Affected',
-      value: `${affectedUsers}`, 
-      inline: true,
-    },
-    {
-      name: 'Amount Removed',
-      value: `${amountToRemoveep}`,
-      inline: true,
-    },
-    {
-      name: 'Reason',
-      value: `${reason}`,
-      inline: true,
-    },
-  ],
-  footer: {
-    text: 'Command executed',
-  },
-  timestamp: new Date(),
-};
-    // Send the log message to the log channel
-  
-     const logChannel = guild.channels.cache.get(logChannelId);
-    if (logChannel instanceof Discord.TextChannel) { // Use 'Discord.TextChannel' to check if it's a text channel
-      await logChannel.send({ embeds: [logEmbed] });
+    console.log(`Spreadsheet ID: ${spreadsheetId}`);
+    console.log(`Eprange: ${Eprange}`);
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: Eprange,
+    });
+
+    const values = res.data.values;
+
+    // Find the first empty row in the new company's range
+    let foundEmptyRow = false;
+    let newRowIndex;
+
+    for (let rowIndex = 0; rowIndex < values.length; rowIndex++) {
+      const row = values[rowIndex];
+
+      // Check if the first column is empty
+      if (!row[0]) {
+        foundEmptyRow = true;
+        newRowIndex = rowIndex;
+
+        // Set values in the new row
+        const newRow = new Array(values[0].length).fill('');
+        newRow[0] = userRowData.userNickname;
+        
+        // Adjust these indexes based on where your Weekly and Total points should go
+        const weeklyPointsIndex = 2; // Replace with the actual index for weekly points
+        const totalPointsIndex = 3; // Replace with the actual index for total points
+
+        newRow[weeklyPointsIndex] = userRowData.userWeeklyPoints.toString();
+        newRow[totalPointsIndex] = userRowData.userTotalPoints.toString();
+
+        // Extract the starting column index, row index, and end column from Eprange
+        const match = Eprange.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
+
+        if (!match) {
+          throw new Error('Invalid Eprange format');
+        }
+
+        const startColumn = match[1];
+        const startRow = parseInt(match[2], 10);
+        const endColumn = match[3];
+
+        // Log the new row for debugging
+        console.log(`New row data:`, newRow);
+
+        // Update values in the new row
+        values[newRowIndex] = newRow;
+
+        // Update spreadsheet with modified values
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${startColumn}${newRowIndex + startRow}:${endColumn}${newRowIndex + startRow}`, // Change only the row index
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [newRow] }, // Use the modified newRow here
+        });
+
+        break;
+      }
     }
- 
-  }
-  
+
+    if (foundEmptyRow) {
+      // Respond to the interaction
+      await console.log(`Moved ${userRowData.userNickname} to ${newCompany}. Weekly: ${userRowData.userWeeklyPoints}, Total: ${userRowData.userTotalPoints}`);
+    } else {
+     console.log(`No empty row found in the new company's range.`);
     }
+  } catch (error) {
+    console.error('Error moving user to new company:', error);
+    throw error;
   }
-  
+}
+
+//nqn
+client.on(Events.MessageCreate, async message => {
+    if (!message.guild) return;
+    if (message.author.bot) return;
+
+
+ /*
+    const regex = await message.content.match(/<a:[a-zA-Z0-9_]+:[0-9]+>/g);
+    
+    if (regex) {
+        const ID = await message.content.match(/(?<=<a:.*:)(\d+)(?=>)/g);
+        const emoji = await message.guild.emojis.fetch(ID).catch(err => {});
+
+        if (emoji) {
+            const member = await message.guild.members.fetch(message.author.id);
+            console.log(member.premiumSubscriptionCount)
+        }
+    } */
 });
-*/
 
 //mod user
-/*
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.guild) return;
-    const commandName = interaction.commandName;
-    const officerCommandTimestamps = new Map();
-
-// Officer commands
-if (interaction.commandName === 'ep') {
-  amountToAddep = 0;
-  amountToRemoveep = 0;
- Guilds = interaction.guild.id;
-  
-    const action = interaction.options.getString('action');
-    if( action === 'Add') {
-    if (!lookingForReply) {
-          await interaction.deferReply();
-          var msg = await interaction.editReply({
-              components: [
-                  {
-                      type: 1,
-                      components: [
-                          {
-                              type: 2,
-                              style: 1,
-                              label: 'Cancel',
-                              custom_id: 'cancel_add_ep'
-                          }
-                      ]
-                  }
-              ],
-              content: `Who would you like to add **${interaction.options.getInteger('amount')}** event points to? Reply to this with a message with all users pings.`
-          });
-          lookingForReply = true;
-          officerReplying = interaction.user.id;
-          msgToReplyep = msg;
-          amountToAddep = interaction.options.getInteger('amount');
-          reason = interaction.options.getString('reason');
-          console.log('Amount to Add:', amountToAddep);
-          mentionedUser = interaction.user.id;
-          avatar = interaction.user.displayAvatarURL({ dynamic: true });
-          guild = interaction.guild;
-          // Record the timestamp when the command was initiated
-          officerCommandTimestamps.set(interaction.user.id, Date.now());
-
-          const timeoutId = setTimeout(() => {
-              if (lookingForReply) {
-                  lookingForReply = false;
-                  msgToReplyep.edit({
-                      components: [
-                          {
-                              type: 1,
-                              components: [
-                                  {
-                                      type: 2,
-                                      style: 1,
-                                      label: 'Cancel',
-                                      custom_id: 'cancel_add_ep',
-                                      disabled: true
-                                  }
-                              ]
-                          }
-                      ],
-                      content: `Who would you like to add **${amountToAddep}** event points to? Reply to this with a message with all users pings. <@${interaction.user.id}> Command Timed Out.`,
-                  });
-                  amountToAddep = 0;
-              }
-              officerCommandTimestamps.delete(interaction.user.id);
-          }, 5 * 60 * 1000);
-
-          // Store the timeout ID for cleanup
-          officerCommandTimestamps.set(`${interaction.user.id}_timeout`, timeoutId);
-
-          return;
-      } else {
-          await interaction.editReply({ ephemeral: true, content: `<@${officerReplying}> is currently using an add or remove command, please wait until they're finished.` });
-          return;
-      }
-    } else if (action ==='Remove') {
-      if (!lookingForReply) {
-        await interaction.deferReply();
-        var msg = await interaction.editReply({
-            components: [
-                {
-                    type: 1,
-                    components: [
-                        {
-                            type: 2,
-                            style: 1,
-                            label: 'Cancel',
-                            custom_id: 'cancel_remove_ep'
-                        }
-                    ]
-                }
-            ],
-            content: `Who would you like to remove **${interaction.options.getInteger('amount')}** event points from? Reply to this with a message with all users pings.`
-        });
-        lookingForReply = true;
-        officerReplying = interaction.user.id;
-        msgToReplyep = msg;
-        amountToRemoveep = interaction.options.getInteger('amount');
-        reason = interaction.options.getString('reason');
-        console.log('Amount to Remove:', amountToRemoveep);
-mentionedUser = interaction.user.id;
-avatar = interaction.user.displayAvatarURL({ dynamic: true }),
-        // Record the timestamp when the command was initiated
-
-        officerCommandTimestamps[interaction.user.id] = Date.now();
-        
-
-// Set a timeout to reset officerReplying after 5 minutes
-setTimeout(() => {
-  lookingForReply = false;
-  msgToReplyep.edit({
-    components: [
-        {
-            type: 1,
-            components: [
-                {
-                    type: 2,
-                    style: 1,
-                    label: 'Cancel',
-                    custom_id: 'cancel_remove_ep',
-                    disabled: true
-                }
-            ]
-        }
-    ],
-    content: `Who would you like to remove **${amountToRemoveep}** event points from? Reply to this with a message with all users pings. <@${interaction.user.id}> Looks like you forgot to respond to the command, what a bad Commissioned Officer. Don't worry your secret is safe with me. `,
-});
-amountToRemoveep = 0;
-  return;
-}, 5 * 60 * 1000);
-        return;
-        
-    } else {
-      await interaction.reply({ephemeral: true, content: `<@${officerReplying}> is currently using an add or remove command, please wait until their finished.`});
-        return;
+    if (botDisabled && interaction.user.id !== '721500712973893654') {
+      await interaction.reply({ ephemeral: true, content: 'The BARC points bot is currently disabled. Please contact <@721500712973893654> with any concerns.' });
+      return;
     }
-    }
- 
-}
-
-if (interaction.customId === "cancel_add_ep") {
-
-        lookingForReply = false;
-        await interaction.message.edit({
-            components: [
-                {
-                    type: 1,
-                    components: [
-                        {
-                            type: 2,
-                            style: 1,
-                            label: 'Cancel',
-                            custom_id: 'cancel_add_ep',
-                            disabled: true
-                        }
-                    ]
-                }
-            ],
-            content: `Who would you like to add **${amountToAddep}** event points to? Reply to this with a message all users pings.`
-        });
-        await interaction.reply(`Cancelled by <@${interaction.user.id}>`);
-        amountToAddep = 0;
-        return;
-    
-}
-
-if (interaction.customId === "cancel_remove_ep") {
-   
-        lookingForReply = false;
-        await interaction.message.edit({
-            components: [
-                {
-                    type: 1,
-                    components: [
-                        {
-                            type: 2,
-                            style: 1,
-                            label: 'Cancel',
-                            custom_id: 'cancel_remove_ep',
-                            disabled: true
-                        }
-                    ]
-                }
-            ],
-            content: `Who would you like to remove **${amountToRemoveep}** event points from? Reply to this with a message all users pings.`
-        });
-        await interaction.reply(`Cancelled by <@${interaction.user.id}>`);
-        amountToRemoveep = 0;
-        return;
-    
-}
-    
-    /*if (interaction.customId !== "Moderate") return;
-    
+    if (interaction.customId !== "Moderate") return;
     else {
         const string = await interaction.values.toString();
 
@@ -908,60 +1452,11 @@ if (interaction.customId === "cancel_remove_ep") {
 
             if (kick) await interaction.reply({ content: `I have kicked${userId}!`, ephemeral: true });
         }
-    } 
-
-});
-*/
-const puppeteer = require('puppeteer');
-const { im } = require('mathjs');
-client.on(Events.MessageCreate, async message => {
-    if (message.channel.type !== ChannelType.DM) return;
-    if (message.author.bot) return;
-
-    var value;
-    await message.channel.sendTyping();
-    setTimeout(async () => {
-        if (!value) await message.channel.sendTyping();
-    }, 10000);
-
-    const browser = await puppeteer.launch({ headless: false });
-    const page = await browser.newPage();
-
-    await page.goto('https://chat-app-f2d296.zapier.app/');
-
-    const textBoxSelector = 'textarea[aria-label="chatbot-user-prompt"]';
-    await page.waitForSelector(textBoxSelector);
-    await page.type(textBoxSelector, message.content);
-
-    await page.keyboard.press("Enter");
-
-    await page.waitForSelector('[data-testid="final-bot-response"] p').catch(err => {
-        return;
-    });
-
-    value = await page.$$eval('[data-testid="final-bot-response"]', async (elements) => {
-        return elements.map((element) => element.textContent);
-    });
-
-    await browser.close();
-
-    value.shift()
-
-    const output = value.join('\n\n\n\n');
-    if (output.length > 2000) {
-        const chunks = output.match(/.{1,2000}/g);
-
-        for (let i = 0; i < chunks.length; i++) {
-            await message.author.send(chunks[i]).catch(err => {
-                console.log(err)
-                message.author.send("I can't find what you are looking for right now.").catch(err => {});
-            });
-        } 
-    } else {
-        await message.author.send(output).catch(err => {
-            message.author.send("I can't find what you are looking for right now.").catch(err => {});
-        });
     }
 
 });
+
+const puppeteer = require('puppeteer');
+const { officer } = require('./commands/Event Points/move');
+
 

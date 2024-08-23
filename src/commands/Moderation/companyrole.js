@@ -3,6 +3,7 @@ const companyrole = require('../../Schemas/companyrole');
 
 
 module.exports = {
+    companyhicom: true,
     data: new SlashCommandBuilder()
         .setName('companyrole')
         .setDescription('Company role')
@@ -20,7 +21,11 @@ module.exports = {
                     option
                         .setName('company')
                         .setDescription('Specify the company')
-                        .setRequired(true)
+                        .setRequired(true).addChoices({ name: 'Speed Demon', value: '"Speed Demon" Company' },
+                        { name: 'Dusk Company', value: 'Dusk Company' },
+                        { name: 'Trooper', value: 'Trooper' },
+                        { name: 'Storm Company', value: 'Storm Company' },
+                        { name: 'Initiate', value: 'Initiate'},)
                 )
         )
         .addSubcommand(command =>
@@ -37,7 +42,11 @@ module.exports = {
                     option
                         .setName('company')
                         .setDescription('Specify the company')
-                        .setRequired(true)
+                        .setRequired(true).addChoices({ name: 'Speed Demon', value: '"Speed Demon" Company' },
+                        { name: 'Dusk Company', value: 'Dusk Company' },
+                        { name: 'Trooper', value: 'Trooper' },
+                        { name: 'Storm Company', value: 'Storm Company' },
+                        { name: 'Initiate', value: 'Initiate'},)
                 )
         )
         .addSubcommand(command =>
@@ -71,8 +80,7 @@ module.exports = {
             return check;
         }
 
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) return await sendMessage(`⚠️ You dont have perms to use this!`);
-
+       
         switch (sub) {
             case 'add':
                 var name = options.getString('company');

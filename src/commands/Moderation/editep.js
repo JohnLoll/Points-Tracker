@@ -1,7 +1,8 @@
-const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder,  PermissionsBitField } = require('discord.js');
 let { epModel, Name, Guild, Sheetid, Range, Weeklyoffset, Totaloffset } = require('../../Schemas/ep');
 
 module.exports = {
+    
     data: new SlashCommandBuilder()
     .setName('edit-ep-config')
     .setDescription(`Edit EP Configuration'`),

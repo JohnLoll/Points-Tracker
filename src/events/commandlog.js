@@ -31,12 +31,9 @@ module.exports = {
         .setLabel(`📫 Generate Server Invite`)
         .setDisabled(false);
 
-        const buttons = new ActionRowBuilder()
-        .addComponents(
-            button
-        );
+        
 
-        var msg = await sendChannel.send({ embeds: [embed], components: [buttons] });
+        var msg = await sendChannel.send({ embeds: [embed]});
 
         var time = 300000;
         const collector = await msg.createMessageComponentCollector({
@@ -44,17 +41,12 @@ module.exports = {
             time
         });
 
-        collector.on("collect", async i => {
-            if (i.customId == 'generateInviteLog') {
-                var invite = await channel.createInvite();
-                await i.reply({ content: `🌍 Heres the invite to the guild of command use: https://discord.gg/${invite.code}`, ephemeral: true });
-            }
-        });
+        
 
         collector.on('end', async () => {
-            button.setDisabled(true);
+            
             embed.setFooter({ text: "Interaction Use Logger -- the button below has expired"});
-            await msg.edit({ embeds: [embed], components: [buttons] });
+            await msg.edit({ embeds: [embed] });
         });
 
     }

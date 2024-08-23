@@ -18,7 +18,8 @@ module.exports = {
             embed: {
               title: 'Rock Paper Scissors',
               color: '#5865F2',
-              description: 'Press a button below to make a choice.'
+              description: 'Press a button below to make a choice.',
+              footer: 'Rock Paper Scissors | Points Tracker'
             },
             buttons: {
               rock: 'Rock',

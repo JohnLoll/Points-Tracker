@@ -25,7 +25,7 @@ module.exports = {
 
     console.log('Sheet',Sheetid.String);
   
-    await  interaction.deferReply({ ephemeral: true });
+    await  interaction.deferReply();
     console.log('EP Board command started');
 
     // Debug statement 2: Check if the Google Sheets API is being called
@@ -110,10 +110,7 @@ module.exports = {
 
             embed.setDescription(description);
 
-            embed.setFooter({
-                text: interaction.guild.name,
-                iconURL: interaction.guild.iconURL()
-            });
+            embed.setFooter({ text: `epboard | Points Tracker` });
 
             // Make sure to check if the interaction is still valid before replying
             if (!interaction.replied) {
